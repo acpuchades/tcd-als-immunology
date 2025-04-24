@@ -1,0 +1,316 @@
+---
+title: "TCD ALS Immunology Analysis"
+editor: visual
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+# Initialize the environment
+
+```{r echo=FALSE}
+library(Rtsne)
+library(broom)
+library(survival)
+library(ggsignif)
+library(gtsummary)
+library(tidyverse)
+library(ggplot2)
+library(ggsurvfit)
+```
+
+```{r}
+set.seed(1234)
+```
+
+# Load the dataset
+
+```{r echo=FALSE}
+source("R/data.r")
+```
+
+```{r}
+imm_pheno
+```
+
+```{r}
+imm_cytokines
+```
+
+```{r}
+imm_treg_tmem
+```
+
+# Immunophenotype panels
+
+```{r}
+imm_pheno.tsne.in <- imm_pheno.imputed |> select(sample_id, group, ends_with("T0"))
+imm_pheno.tsne <- Rtsne(imm_pheno.tsne.in |> select(-sample_id, -group), perplexity = 15)
+tibble(tSNE.x = imm_pheno.tsne$Y[, 1], tSNE.y = imm_pheno.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y)) +
+  geom_point()
+```
+
+## Cases vs controls
+
+```{r}
+imm_pheno.tsne.in |>
+  bind_cols(tSNE.x = imm_pheno.tsne$Y[, 1], tSNE.y = imm_pheno.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = group)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Slow vs fast progressors
+
+```{r}
+imm_pheno.tsne.in |>
+  bind_cols(tSNE.x = imm_pheno.tsne$Y[, 1], tSNE.y = imm_pheno.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(
+    clinical |> select(sample_id, progression_category),
+    by = "sample_id"
+  ) |>
+  drop_na(progression_category) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = progression_category)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+# CD4 cytokine expression
+
+```{r}
+imm_cyto_cd4.tsne.in <- imm_cytokines_l.imputed |>
+  filter(celltype == "CD4", timepoint == "T0") |>
+  select(-celltype, -timepoint)
+imm_cyto_cd4.tsne <- Rtsne(imm_cyto_cd4.tsne.in |> select(-sample_id, -group), perplexity = 15)
+tibble(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y)) +
+  geom_point()
+```
+
+## Cases vs controls
+
+```{r}
+imm_cyto_cd4.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = group)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Slow vs fast progressors
+
+```{r}
+imm_cyto_cd4.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(
+    clinical |> select(sample_id, progression_category),
+    by = "sample_id"
+  ) |>
+  drop_na(progression_category) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = progression_category)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+# CD8 cytokine expression
+
+```{r}
+imm_cyto_cd8.tsne.in <- imm_cytokines_l.imputed |>
+  filter(celltype == "CD8", timepoint == "T0") |>
+  select(-celltype, -timepoint, -ends_with("_tregs"))
+
+imm_cyto_cd8.tsne <- Rtsne(imm_cyto_cd8.tsne.in |> select(-sample_id, -group), perplexity = 15)
+tibble(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y)) +
+  geom_point()
+```
+
+```{r}
+imm_cyto_cd8.kmc <- kmeans(
+  imm_cyto_cd8.tsne.in |> select(where(is.numeric)),
+  centers = 3, nstart = 10
+)
+
+imm_cyto_cd8.tsne.in |>
+  bind_cols(
+    tSNE.x = imm_cyto_cd8.tsne$Y[, 1],
+    tSNE.y = imm_cyto_cd8.tsne$Y[, 2],
+    KM = factor(imm_cyto_cd8.kmc$cluster)
+  ) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = KM)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Cases vs controls
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = group)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Slow vs fast progressors
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(
+    clinical |> select(sample_id, progression_category),
+    by = "sample_id"
+  ) |>
+  drop_na(progression_category) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = progression_category)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Long vs short survivors
+
+```{r}
+imm_cyto_cd8.surv <- imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  left_join(clinical, by = "sample_id")
+
+imm_cyto_cd8.km <- survfit2(
+  Surv(disease_duration, vital_status) ~ KM,
+  data = imm_cyto_cd8.surv
+)
+
+ggsurvfit(imm_cyto_cd8.km) + add_pvalue()
+```
+
+```{r}
+imm_cyto_cd8.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8.cph)
+```
+
+## Principal component analysis
+
+```{r}
+imm_cyto_cd8.pca <- prcomp(
+  imm_cyto_cd8.tsne.in |> select(-sample_id, -group),
+  center = TRUE, scale. = TRUE)
+```
+
+```{r}
+tibble(eigenval = imm_cyto_cd8.pca$sdev^2) |>
+  mutate(PC = row_number()) |>
+  ggplot(aes(PC, eigenval / sum(eigenval))) +
+  geom_point() + geom_line() +
+  labs(x = "Principal component", y = "Eigenvalue") +
+  scale_x_continuous(breaks = 1:10) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme_minimal()
+```
+
+We can see that the first 5 PCs explain around `r round(sum(imm_cyto_cd8.pca$sdev[1:5]^2) / sum(imm_cyto_cd8.pca$sdev^2) * 100, 1)`% of the variance in the data.
+
+```{r}
+imm_cyto_cd8.pca$rotation[, 1:5] |>
+  as.data.frame() |>
+  rownames_to_column("marker") |>
+  pivot_longer(-marker, names_to = "PC", values_to = "loading") |>
+  ggplot(aes(PC, marker, fill = loading)) +
+  geom_tile() +
+  geom_text(aes(label = round(loading, 2)), size = 3) +
+  scale_fill_gradient2(low="blue", mid="white", high="red") +
+  labs(x = NULL, y = NULL) +
+  theme_minimal()
+```
+
+This is how the first 5 PCs are driven by the different cytokine markers:
+
+-   **PC1**: driven positively by IL-2, IL-4, GM-CSF and TNF-alpha.
+-   **PC2**: driven positively by IL-17 and IL-22.
+-   **PC3**: driven negatively by IFN-gamma, IL-21, CD-161 and TNF-alpha.
+-   **PC4**: driven positively by CD-161, IL-17 and IL-22, and negatively by IFN-gamma.
+-   **PC5**: driven negatively by CD-161 and negatively by IL-21 and IL-22.
+
+Let's see how the first 5 PCs are represented among the clusters we identified earlier:
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  select(sample_id, group) |>
+  bind_cols(KM=imm_cyto_cd8.kmc$cluster) |>
+  bind_cols(imm_cyto_cd8.pca$x[,1:5]) |>
+  pivot_longer(starts_with("PC"), names_to = "PC", values_to = "value") |>
+  ggplot(aes(factor(KM), value, fill=factor(KM))) +
+  geom_boxplot() +
+  geom_signif(
+    comparisons = list(c("1", "3"), c("1", "2"), c("2", "3")),
+    map_signif_level = TRUE,
+    textsize = 3,
+    size = 0.5,
+    y_position = c(8, 7, 6)
+  ) +
+  facet_wrap(~PC)
+```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM=imm_cyto_cd8.kmc$cluster) |>
+  pivot_longer(-c(sample_id, group, KM), names_to = "PC", values_to = "value") |>
+  ggplot(aes(factor(KM), value, fill=factor(KM))) +
+  geom_boxplot() +
+  facet_wrap(~PC, scales = "free")
+```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM=imm_cyto_cd8.kmc$cluster) |>
+  pivot_longer(-c(sample_id, group, KM), names_to = "marker") |>
+  group_by(marker) |>
+  reframe(aov(lm(value ~ KM)) |> tidy() |> filter(term == "KM"))
+```
+
+# Treg/Tmem panels
+
+```{r}
+imm_treg_tmem.tsne.in <- imm_treg_tmem.imputed |>
+  select(sample_id, group, ends_with("T0"))
+imm_treg_tmem.tsne <- Rtsne(
+  imm_treg_tmem.tsne.in |> select(where(is.numeric)),
+  perplexity = 10
+)
+tibble(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y)) +
+  geom_point()
+```
+
+## Cases vs controls
+
+```{r}
+imm_treg_tmem.tsne.in |>
+  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = group)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Slow vs fast progressors
+
+```{r}
+imm_treg_tmem.tsne.in |>
+  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  left_join(
+    clinical |> select(sample_id, progression_category),
+    by = "sample_id"
+  ) |>
+  filter(group == "ALS") |>
+  drop_na(progression_category) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = progression_category)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
