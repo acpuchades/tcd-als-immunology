@@ -1,10 +1,12 @@
 ---
 title: "TCD ALS Immunology Analysis"
-editor: visual
+author: "Alejandro Caravaca Puchades"
+date: "`r Sys.Date()`"
 output:
   html_document:
+    df_print: paged
     toc: true
-    toc_depth: 2
+    toc_float: true
 ---
 
 # Initialize the environment
@@ -18,10 +20,11 @@ library(gtsummary)
 library(tidyverse)
 library(ggplot2)
 library(ggsurvfit)
+library(powerSurvEpi)
 ```
 
 ```{r}
-set.seed(1234)
+set.seed(9999)
 ```
 
 # Load the dataset
@@ -62,6 +65,21 @@ imm_pheno.tsne.in |>
   theme(legend.position = "bottom")
 ```
 
+## Site of onset
+
+```{r}
+imm_pheno.tsne.in |>
+  bind_cols(tSNE.x = imm_pheno.tsne$Y[, 1], tSNE.y = imm_pheno.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(
+    clinical |> select(sample_id, site_of_onset),
+    by = "sample_id"
+  ) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = site_of_onset)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
 ## Slow vs fast progressors
 
 ```{r}
@@ -77,6 +95,62 @@ imm_pheno.tsne.in |>
   geom_point() +
   theme(legend.position = "bottom")
 ```
+
+# Treg/Tmem panels
+
+```{r}
+imm_treg_tmem.tsne.in <- imm_treg_tmem.imputed |>
+  select(sample_id, group, ends_with("T0"))
+imm_treg_tmem.tsne <- Rtsne(
+  imm_treg_tmem.tsne.in |> select(where(is.numeric)),
+  perplexity = 15
+)
+tibble(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y)) +
+  geom_point()
+```
+
+## Cases vs controls
+
+```{r}
+imm_treg_tmem.tsne.in |>
+  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = group)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Site of onset
+
+```{r}
+imm_treg_tmem.tsne.in |>
+  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(
+    clinical |> select(sample_id, site_of_onset),
+    by = "sample_id"
+  ) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = site_of_onset)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+## Slow vs fast progressors
+
+```{r}
+imm_treg_tmem.tsne.in |>
+  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  left_join(
+    clinical |> select(sample_id, progression_category),
+    by = "sample_id"
+  ) |>
+  filter(group == "ALS") |>
+  drop_na(progression_category) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = progression_category)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
 
 # CD4 cytokine expression
 
@@ -96,6 +170,22 @@ tibble(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
 imm_cyto_cd4.tsne.in |>
   bind_cols(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
   ggplot(aes(tSNE.x, tSNE.y, color = group)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+
+## Site of onset
+
+```{r}
+imm_cyto_cd4.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(
+    clinical |> select(sample_id, site_of_onset),
+    by = "sample_id"
+  ) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = site_of_onset)) +
   geom_point() +
   theme(legend.position = "bottom")
 ```
@@ -129,6 +219,8 @@ tibble(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
   geom_point()
 ```
 
+## Cluster analysis
+
 ```{r}
 imm_cyto_cd8.kmc <- kmeans(
   imm_cyto_cd8.tsne.in |> select(where(is.numeric)),
@@ -146,54 +238,13 @@ imm_cyto_cd8.tsne.in |>
   theme(legend.position = "bottom")
 ```
 
-## Cases vs controls
-
 ```{r}
 imm_cyto_cd8.tsne.in |>
-  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
-  ggplot(aes(tSNE.x, tSNE.y, color = group)) +
-  geom_point() +
-  theme(legend.position = "bottom")
-```
-
-## Slow vs fast progressors
-
-```{r}
-imm_cyto_cd8.tsne.in |>
-  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
-  filter(group == "ALS") |>
-  left_join(
-    clinical |> select(sample_id, progression_category),
-    by = "sample_id"
-  ) |>
-  drop_na(progression_category) |>
-  ggplot(aes(tSNE.x, tSNE.y, color = progression_category)) +
-  geom_point() +
-  theme(legend.position = "bottom")
-```
-
-## Long vs short survivors
-
-```{r}
-imm_cyto_cd8.surv <- imm_cyto_cd8.tsne.in |>
   bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
-  left_join(clinical, by = "sample_id")
-
-imm_cyto_cd8.km <- survfit2(
-  Surv(disease_duration, vital_status) ~ KM,
-  data = imm_cyto_cd8.surv
-)
-
-ggsurvfit(imm_cyto_cd8.km) + add_pvalue()
-```
-
-```{r}
-imm_cyto_cd8.cph <- coxph(
-  Surv(disease_duration, vital_status) ~ KM,
-  data = imm_cyto_cd8.surv
-)
-
-summary(imm_cyto_cd8.cph)
+  left_join(clinical, by = "sample_id") |>
+  select(KM, delta_fs, progression_category, site_of_onset) |>
+  tbl_summary(by = "KM") |>
+  add_p()
 ```
 
 ## Principal component analysis
@@ -232,11 +283,11 @@ imm_cyto_cd8.pca$rotation[, 1:5] |>
 
 This is how the first 5 PCs are driven by the different cytokine markers:
 
--   **PC1**: driven positively by IL-2, IL-4, GM-CSF and TNF-alpha.
--   **PC2**: driven positively by IL-17 and IL-22.
--   **PC3**: driven negatively by IFN-gamma, IL-21, CD-161 and TNF-alpha.
--   **PC4**: driven positively by CD-161, IL-17 and IL-22, and negatively by IFN-gamma.
--   **PC5**: driven negatively by CD-161 and negatively by IL-21 and IL-22.
+- **PC1**: driven positively by IL-2, IL-4, GM-CSF and TNF-alpha.
+- **PC2**: driven positively by IL-17 and IL-22.
+- **PC3**: driven negatively by IFN-gamma, IL-21, CD-161 and TNF-alpha.
+- **PC4**: driven positively by CD-161, IL-17 and IL-22, and negatively by IFN-gamma.
+- **PC5**: driven negatively by CD-161 and negatively by IL-21 and IL-22.
 
 Let's see how the first 5 PCs are represented among the clusters we identified earlier:
 
@@ -253,18 +304,24 @@ imm_cyto_cd8.tsne.in |>
     map_signif_level = TRUE,
     textsize = 3,
     size = 0.5,
-    y_position = c(8, 7, 6)
+    y_position = c(8.5, 7, 7)
   ) +
-  facet_wrap(~PC)
+  coord_cartesian(ylim=c(-5, 10)) +
+  facet_wrap(~PC) +
+  labs(title = "Imputed dataset")
 ```
 
 ```{r}
 imm_cyto_cd8.tsne.in |>
-  bind_cols(KM=imm_cyto_cd8.kmc$cluster) |>
-  pivot_longer(-c(sample_id, group, KM), names_to = "PC", values_to = "value") |>
-  ggplot(aes(factor(KM), value, fill=factor(KM))) +
+  bind_cols(cd8_group=factor(imm_cyto_cd8.kmc$cluster)) |>
+  pivot_longer(
+    -c(sample_id, group, cd8_group),
+    names_to = "PC", values_to = "value"
+  ) |>
+  ggplot(aes(cd8_group, value, fill=cd8_group)) +
   geom_boxplot() +
-  facet_wrap(~PC, scales = "free")
+  facet_wrap(~PC, scales = "free") +
+  labs(title = "Imputed dataset")
 ```
 
 ```{r}
@@ -272,45 +329,285 @@ imm_cyto_cd8.tsne.in |>
   bind_cols(KM=imm_cyto_cd8.kmc$cluster) |>
   pivot_longer(-c(sample_id, group, KM), names_to = "marker") |>
   group_by(marker) |>
-  reframe(aov(lm(value ~ KM)) |> tidy() |> filter(term == "KM"))
+  reframe(kruskal.test(value ~ KM) |> tidy()) |>
+  arrange(p.value)
 ```
 
-# Treg/Tmem panels
 
 ```{r}
-imm_treg_tmem.tsne.in <- imm_treg_tmem.imputed |>
-  select(sample_id, group, ends_with("T0"))
-imm_treg_tmem.tsne <- Rtsne(
-  imm_treg_tmem.tsne.in |> select(where(is.numeric)),
-  perplexity = 10
-)
-tibble(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
-  ggplot(aes(tSNE.x, tSNE.y)) +
-  geom_point()
+imm_cyto_cd8.tsne.in |>
+  select(sample_id) |>
+  bind_cols(KM=factor(imm_cyto_cd8.kmc$cluster)) |>
+  inner_join(imm_cytokines, by = "sample_id") |>
+  drop_na(KM, CD8_il21_T0) |>
+  ggplot(aes(KM, CD8_il21_T0, fill=KM)) +
+  geom_boxplot() +
+  geom_signif(
+    comparisons = list(c("1", "3"), c("1", "2"), c("2", "3")),
+    map_signif_level = TRUE,
+    textsize = 3,
+    size = 0.5,
+    y_position = c(100, 90, 90)
+  ) +
+  coord_cartesian(ylim=c(0, 110)) +
+  labs(title = "Raw dataset")
 ```
 
 ## Cases vs controls
 
 ```{r}
-imm_treg_tmem.tsne.in |>
-  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+imm_cyto_cd8.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
   ggplot(aes(tSNE.x, tSNE.y, color = group)) +
   geom_point() +
   theme(legend.position = "bottom")
 ```
 
+## Site of onset
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(
+    clinical |> select(sample_id, site_of_onset),
+    by = "sample_id"
+  ) |>
+  ggplot(aes(tSNE.x, tSNE.y, color = site_of_onset)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  left_join(
+    clinical |> select(sample_id, site_of_onset),
+    by = "sample_id"
+  ) |>
+  drop_na(site_of_onset) |>
+  mutate(site_of_onset = site_of_onset) |>
+  ggplot(aes(KM, fill=site_of_onset)) +
+  geom_bar(position="fill")
+```
+
 ## Slow vs fast progressors
 
 ```{r}
-imm_treg_tmem.tsne.in |>
-  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+imm_cyto_cd8.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
   left_join(
     clinical |> select(sample_id, progression_category),
     by = "sample_id"
   ) |>
-  filter(group == "ALS") |>
   drop_na(progression_category) |>
   ggplot(aes(tSNE.x, tSNE.y, color = progression_category)) +
   geom_point() +
   theme(legend.position = "bottom")
 ```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  left_join(
+    clinical |> select(sample_id, delta_fs),
+    by = "sample_id"
+  ) |>
+  drop_na(delta_fs) |>
+  ggplot(aes(KM, delta_fs, fill=KM)) +
+  geom_boxplot() +
+  geom_signif(
+    comparisons = list(c("1", "3"), c("1", "2"), c("2", "3")),
+    map_signif_level = TRUE,
+    y_position = c(4, 3.5, 3.5)
+  ) +
+  coord_cartesian(ylim=c(0, 4.5))
+```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  left_join(clinical, by = "sample_id") |>
+  ggplot(aes(il21, delta_fs, color=KM)) +
+  geom_point()
+```
+
+## Patient survival
+
+```{r}
+imm_cyto_cd8.surv <- imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  left_join(clinical, by = "sample_id")
+
+imm_cyto_cd8.km <- survfit2(
+  Surv(disease_duration, vital_status) ~ KM,
+  data = imm_cyto_cd8.surv
+)
+
+ggsurvfit(imm_cyto_cd8.km) + add_pvalue() + labs(title="Imputed dataset")
+```
+
+There seems to be a worse survival associated with CD8-related cluster 2.
+
+```{r}
+imm_cyto_cd8_sex.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM + sex,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_sex.cph)
+```
+
+```{r}
+imm_cyto_cd8_sex_i.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM * sex,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_sex_i.cph)
+```
+
+This effect is independent of sex, and there's not an associated interaction.
+
+```{r}
+imm_cyto_cd8_onset.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM + site_of_onset,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_onset.cph)
+```
+
+```{r}
+imm_cyto_cd8_onset_i.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM * site_of_onset,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_onset_i.cph)
+```
+
+This effect is also independent of site of onset, and there's not a clear interaction either.
+
+To establish which cytokines among the ones differentially expressed in cluster 2 drive the survival effects, let's analyze each one of them separately:
+
+```{r}
+coxph(Surv(disease_duration, vital_status) ~ il21, imm_cyto_cd8.surv)
+```
+
+```{r}
+coxph(Surv(disease_duration, vital_status) ~ ifn_gamma, imm_cyto_cd8.surv)
+```
+
+```{r}
+coxph(Surv(disease_duration, vital_status) ~ tnf_alpha, imm_cyto_cd8.surv)
+```
+
+```{r}
+coxph(Surv(disease_duration, vital_status) ~ gm_csf, imm_cyto_cd8.surv)
+```
+
+Among IL-21, IFN-gamma, TNF-alpha and GM-CSF, IL-21 is the only one that seems to have a significant effect on survival.
+
+```{r}
+coxph(Surv(disease_duration, vital_status) ~ KM + il21, imm_cyto_cd8.surv)
+```
+
+Adjusting for IL-21 makes the effect of CD8-related cluster 2 non-significant, which suggests that IL-21 is the main driver of the survival effect we see in this cluster.
+
+> **Hypothesis**: IL-21 expression in CD8 is the main driver of the survival differences we see in this dataset. Alternatively, it could be inversely-associated with survival if patients with more rapidly progressive ALS or at more advanced stages of disease have higher IL-21 expression by CD8.
+
+Let's test that hypothesis graphically by plotting survival curves of patients above and below the median IL-21:
+
+```{r}
+imm_cyto_cd8.surv |>
+  mutate(il21_group = if_else(il21 <= median(il21), "IL-21/Low", "IL-21/High")) |>
+  with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
+  ggsurvfit() + add_pvalue() + labs(title = "Imputed dataset")
+```
+
+We see that patients in the IL-21/High group have a significantly shorter survival time compared to those in the IL-21/Low group (p = 0.03). This suggests that IL-21 is a key factor in determining survival differences in this dataset.
+
+```{r}
+imm_cytokines_l |>
+  filter(group == "ALS", celltype=="CD8") |>
+  drop_na(sample_id, timepoint, il21) |>
+  ggplot(aes(timepoint, il21, group=sample_id)) +
+  geom_line() +
+  coord_cartesian(ylim=c(0, 17)) +
+  labs(title = "Raw dataset", x = NULL, y = "CD8 IL-21")
+```
+
+```{r}
+imm_cytokines.imputed |>
+  filter(group == "ALS") |>
+  mutate(il21_group = factor(case_when(
+    CD8_il21_T0 > median(CD8_il21_T0, na.rm = TRUE) ~ "IL-21/EarlyHigh",
+    CD8_il21_T1 > median(CD8_il21_T1, na.rm = TRUE) ~ "IL-21/LateHigh",
+    TRUE ~ "IL-21/Low"
+  ), levels = c("IL-21/Low", "IL-21/EarlyHigh", "IL-21/LateHigh"))) |>
+  left_join(clinical, by = "sample_id") |>
+  with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
+  ggsurvfit() + add_pvalue() + labs(title="Imputed dataset")
+```
+
+Patients with increased CD8 IL-21 expression at both T0 and T1 show a significantly worse survival compared to those with low IL-21 expression at both timepoints on the imputed dataset (p = 0.039).
+
+```{r}
+imm_cytokines_t0 |>
+  filter(group == "ALS", timepoint == "T0") |>
+  mutate(il21_group = ifelse(
+    CD8_il21 <= median(CD8_il21, na.rm = TRUE), "IL-21/Low", "IL-21/High"
+  )) |>
+  left_join(clinical, by = "sample_id") |>
+  with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
+  ggsurvfit() + add_pvalue() + labs(title = "Raw dataset")
+```
+
+```{r}
+imm_cytokines |>
+  filter(group == "ALS") |>
+  mutate(il21_group = factor(case_when(
+    CD8_il21_T0 > median(CD8_il21_T0, na.rm = TRUE) ~ "IL-21/EarlyHigh",
+    CD8_il21_T1 > median(CD8_il21_T1, na.rm = TRUE) ~ "IL-21/LateHigh",
+    TRUE ~ "IL-21/Low"
+  ), levels = c("IL-21/Low", "IL-21/EarlyHigh", "IL-21/LateHigh"))) |>
+  left_join(clinical, by = "sample_id") |>
+  with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
+  ggsurvfit() + add_pvalue() + labs(title = "Raw dataset")
+```
+
+The same analysis shows a similar trend in the unimputed dataset, but results do not reach statistical significance. This might be due to decreased power from the smaller sample size due to listwise deletion.
+
+```{r}
+imm_cd8_il21_t0.surv <- imm_cytokines_t0 |>
+  filter(group == "ALS", timepoint == "T0") |>
+  mutate(il21_group = ifelse(
+    CD8_il21 <= median(CD8_il21, na.rm = TRUE), "C", "E"
+  )) |>
+  left_join(
+    clinical |> select(sample_id, disease_duration, vital_status),
+    by = "sample_id"
+  )
+
+imm_cd8_il21_t0.pwr <- powerCT(
+  formula=Surv(disease_duration, vital_status) ~ il21_group,
+  dat=imm_cd8_il21_t0.surv,
+  nC=sum(imm_cd8_il21_t0.surv$il21_group == "C", na.rm = TRUE),
+  nE=sum(imm_cd8_il21_t0.surv$il21_group == "E", na.rm = TRUE),
+  alpha = 0.05,
+  RR=(
+    imm_cyto_cd8.surv |>
+      mutate(
+        il21_group = factor(
+          if_else(il21 <= median(il21), "IL-21/Low", "IL-21/High"),
+          levels = c("IL-21/Low", "IL-21/High")
+      )) |>
+      with(coxph(Surv(disease_duration, vital_status) ~ il21_group)) |>
+      coef() |> exp() |> as.numeric()
+  )
+)
+```
+
+From the code above, we have an estimated power of only `r round(imm_cd8_il21_t0.pwr$power * 100, 1)`% to detect a difference as significant as that seen in the imputed dataset with alpha=0.05.

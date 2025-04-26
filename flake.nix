@@ -6,7 +6,7 @@
 		flake-utils.url = "github:numtide/flake-utils";
 	};
 
-	outputs = { self, nixpkgs, flake-utils }:
+	outputs = { nixpkgs, flake-utils, ... }:
 		flake-utils.lib.eachDefaultSystem (system:
 		let
 			pkgs = import nixpkgs { inherit system; };
@@ -18,6 +18,7 @@
 				gtsummary
 				janitor
 				missForest
+				powerSurvEpi
 				rmarkdown
 				survival
 				tidyverse
@@ -40,7 +41,7 @@
 			};
 		in {
 			devShells.default = pkgs.mkShell {
-				packages = [ r-with-packages rstudio-with-packages ];
+				packages = [ pkgs.ghostscript r-with-packages rstudio-with-packages ];
 			};
 			apps.rstudio = {
 				type = "app";
