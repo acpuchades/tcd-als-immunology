@@ -62,6 +62,7 @@ clinical <- read_excel("data/Clinical Data_ImmunologyCohort_2024 07 23 Barry.xls
     across(patient_control, as_subject_group),
     across(site_of_onset, as_site_of_onset),
     across(cognitive_status, as_cognitive_status),
+    age_at_onset = floor((date_of_onset - date_of_birth) / dyears(1)),
     disease_duration = pmax(
       years_from_onset_present,
       survival_yr_death_yr_onset,

@@ -471,6 +471,26 @@ summary(imm_cyto_cd8_sex_i.cph)
 This effect is independent of sex, and there's not an associated interaction.
 
 ```{r}
+imm_cyto_cd8_age.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM + age_at_onset,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_age.cph)
+```
+
+```{r}
+imm_cyto_cd8_age_i.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM * age_at_onset,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_age_i.cph)
+```
+
+This effect is also independent of age at onset, but there seems to be an interaction where older patients in cluster 2 have a slightly better survival compared to younger individuals within that cluster.
+
+```{r}
 imm_cyto_cd8_onset.cph <- coxph(
   Surv(disease_duration, vital_status) ~ KM + site_of_onset,
   data = imm_cyto_cd8.surv
