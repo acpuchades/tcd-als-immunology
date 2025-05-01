@@ -289,6 +289,42 @@ This is how the first 5 PCs are driven by the different cytokine markers:
 - **PC4**: driven positively by CD-161, IL-17 and IL-22, and negatively by IFN-gamma.
 - **PC5**: driven negatively by CD-161 and negatively by IL-21 and IL-22.
 
+Now let's explore the correlation between the different PCs and the age of the subjects:
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  select(sample_id) |>
+  bind_cols(as_tibble(imm_cyto_cd8.pca$x[,1:5])) |>
+  left_join(demographics |> select(sample_id, age), by = "sample_id") |>
+  drop_na(age) |>
+  pivot_longer(
+    -c(sample_id, age),
+    names_to = "marker", values_to = "value"
+  ) |>
+  reframe(
+    cor.test(age, value, method = "spearman") |> tidy(),
+    .by = "marker"
+  )
+```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  select(sample_id) |>
+  bind_cols(as_tibble(imm_cyto_cd8.pca$x[,1:5])) |>
+  left_join(demographics |> select(sample_id, age), by = "sample_id") |>
+  drop_na(age) |>
+  pivot_longer(
+    -c(sample_id, age),
+    names_to = "marker", values_to = "value"
+  ) |>
+  ggplot(aes(age, value)) +
+  geom_smooth(method="lm") +
+  geom_point() +
+  facet_wrap(~marker, scales = "free")
+```
+
+PC3 seems to be the only marker statistically associated with age, and it is negatively correlated with it. This means that older patients have lower values of PC3 ---and consequently, higher levels of CD8-associated IFN-gamma, IL-21, CD-161 and TNF-alpha---.
+
 Let's see how the first 5 PCs are represented among the clusters we identified earlier:
 
 ```{r}
@@ -332,7 +368,6 @@ imm_cyto_cd8.tsne.in |>
   reframe(kruskal.test(value ~ KM) |> tidy()) |>
   arrange(p.value)
 ```
-
 
 ```{r}
 imm_cyto_cd8.tsne.in |>
@@ -488,7 +523,7 @@ imm_cyto_cd8_age_i.cph <- coxph(
 summary(imm_cyto_cd8_age_i.cph)
 ```
 
-This effect is also independent of age at onset, but there seems to be an interaction where older patients in cluster 2 have a slightly better survival compared to younger individuals within that cluster.
+This effect is also not fully explained by a higher age at onset, but there seems to be an interaction where older patients in cluster 2 have a slightly better survival compared to younger individuals within that cluster.
 
 ```{r}
 imm_cyto_cd8_onset.cph <- coxph(
@@ -598,36 +633,18 @@ imm_cytokines |>
   ggsurvfit() + add_pvalue() + labs(title = "Raw dataset")
 ```
 
-The same analysis shows a similar trend in the unimputed dataset, but results do not reach statistical significance. This might be due to decreased power from the smaller sample size due to listwise deletion.
+The same analysis by discretizing on the median IL-21 shows a similar trend in the unimputed dataset, with results not reaching statistical significance. This might be due to decreased power from the smaller sample size due to listwise deletion.
+
+However, the Cox regression analysis on the unimputed dataset still shows a highly significant survival effect for IL-21-based CD8 response that is not fully explained by age at onset.
 
 ```{r}
-imm_cd8_il21_t0.surv <- imm_cytokines_t0 |>
-  filter(group == "ALS", timepoint == "T0") |>
-  mutate(il21_group = ifelse(
-    CD8_il21 <= median(CD8_il21, na.rm = TRUE), "C", "E"
-  )) |>
-  left_join(
-    clinical |> select(sample_id, disease_duration, vital_status),
-    by = "sample_id"
-  )
-
-imm_cd8_il21_t0.pwr <- powerCT(
-  formula=Surv(disease_duration, vital_status) ~ il21_group,
-  dat=imm_cd8_il21_t0.surv,
-  nC=sum(imm_cd8_il21_t0.surv$il21_group == "C", na.rm = TRUE),
-  nE=sum(imm_cd8_il21_t0.surv$il21_group == "E", na.rm = TRUE),
-  alpha = 0.05,
-  RR=(
-    imm_cyto_cd8.surv |>
-      mutate(
-        il21_group = factor(
-          if_else(il21 <= median(il21), "IL-21/Low", "IL-21/High"),
-          levels = c("IL-21/Low", "IL-21/High")
-      )) |>
-      with(coxph(Surv(disease_duration, vital_status) ~ il21_group)) |>
-      coef() |> exp() |> as.numeric()
-  )
-)
+imm_cytokines |>
+  inner_join(clinical, by = "sample_id") |>
+  with(coxph(Surv(disease_duration, vital_status) ~ CD8_il21_T0))
 ```
 
-From the code above, we have an estimated power of only `r round(imm_cd8_il21_t0.pwr$power * 100, 1)`% to detect a difference as significant as that seen in the imputed dataset with alpha=0.05.
+```{r}
+imm_cytokines |>
+  inner_join(clinical, by = "sample_id") |>
+  with(coxph(Surv(disease_duration, vital_status) ~ CD8_il21_T0 * age_at_onset))
+```

@@ -53,6 +53,15 @@ as_timepoint <- function(x) {
   factor(x, levels = c("T0", "T1"))
 }
 
+demographics <- read_excel("data/Clinical Data_ImmunologyCohort_2024 07 23 Barry.xlsx", sheet="Age") |>
+  clean_names() |>
+  transmute(
+    sample_id = immunology_code,
+    date_of_birth, sex,
+    group = as_subject_group(patient_control),
+    age = age_at_sample_taken
+  )
+
 clinical <- read_excel("data/Clinical Data_ImmunologyCohort_2024 07 23 Barry.xlsx", sheet = "Clinical_Demographics") |>
   clean_names() |>
   select(-immunology_code_2, -score_t0, -t1) |>

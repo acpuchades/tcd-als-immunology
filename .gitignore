@@ -47,4 +47,5 @@ data/
 *.xlsx
 
 # Output files
+tcd-als-immunology_files/
 *.html
