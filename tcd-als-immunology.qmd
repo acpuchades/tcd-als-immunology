@@ -1,17 +1,22 @@
 ---
 title: "TCD ALS Immunology Analysis"
-author: "Alejandro Caravaca Puchades"
-date: 2025-05-02
-output: html
+author:
+  name: "Alejandro Caravaca Puchades"
+  email: "acaravaca@idibell.cat"
+  affiliation: "Institut d'Investigació Biomèdica de Bellvitge (IDIBELL), Barcelona, Spain"
+  orcid: "0000-0003-2223-7335"
 toc: true
 toc_depth: 2
 toc_float: true
 df-print: paged
+format:
+  html:
+    embed-resources: true
 ---
 
-# Initialize the environment
-
-```{r echo=FALSE}
+```{r}
+#| echo: false
+#| message: false
 library(Rtsne)
 library(broom)
 library(ggsignif)
@@ -20,15 +25,15 @@ library(ggplot2)
 library(ggsurvfit)
 library(tidyverse)
 library(survival)
-```
 
-```{r}
 set.seed(9999)
 ```
 
-# Load the dataset
+# Loading the dataset
 
-```{r echo=FALSE}
+```{r}
+#| echo: false
+#| message: false
 source("R/data.r")
 ```
 
@@ -52,6 +57,18 @@ imm_pheno.tsne <- Rtsne(imm_pheno.tsne.in |> select(-sample_id, -group), perplex
 tibble(tSNE.x = imm_pheno.tsne$Y[, 1], tSNE.y = imm_pheno.tsne$Y[, 2]) |>
   ggplot(aes(tSNE.x, tSNE.y)) +
   geom_point()
+```
+
+## Sex
+
+```{r}
+imm_pheno.tsne.in |>
+  bind_cols(tSNE.x = imm_pheno.tsne$Y[, 1], tSNE.y = imm_pheno.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(clinical |> select(sample_id, sex), by = "sample_id") |>
+  ggplot(aes(tSNE.x, tSNE.y, color = sex)) +
+  geom_point() +
+  theme(legend.position = "bottom")
 ```
 
 ## Cases vs controls
@@ -109,6 +126,18 @@ tibble(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |
   geom_point()
 ```
 
+## Sex
+
+```{r}
+imm_treg_tmem.tsne.in |>
+  bind_cols(tSNE.x = imm_treg_tmem.tsne$Y[, 1], tSNE.y = imm_treg_tmem.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(clinical |> select(sample_id, sex), by = "sample_id") |>
+  ggplot(aes(tSNE.x, tSNE.y, color = sex)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
 ## Cases vs controls
 
 ```{r}
@@ -160,6 +189,18 @@ imm_cyto_cd4.tsne <- Rtsne(imm_cyto_cd4.tsne.in |> select(-sample_id, -group), p
 tibble(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
   ggplot(aes(tSNE.x, tSNE.y)) +
   geom_point()
+```
+
+## Sex
+
+```{r}
+imm_cyto_cd4.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd4.tsne$Y[, 1], tSNE.y = imm_cyto_cd4.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(clinical |> select(sample_id, sex), by = "sample_id") |>
+  ggplot(aes(tSNE.x, tSNE.y, color = sex)) +
+  geom_point() +
+  theme(legend.position = "bottom")
 ```
 
 ## Cases vs controls
@@ -239,10 +280,15 @@ imm_cyto_cd8.tsne.in |>
 imm_cyto_cd8.tsne.in |>
   bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
   left_join(clinical, by = "sample_id") |>
-  select(KM, delta_fs, progression_category, site_of_onset) |>
-  tbl_summary(by = "KM") |>
-  add_p()
+  tbl_summary(by = "KM", include = c(
+    sex, age_at_onset, site_of_onset, delta_fs, progression_category
+  )) |>
+  add_p() |>
+  add_significance_stars() |>
+  modify_header(label ~ "**CD8-related cluster**")
 ```
+
+Interestingly, there seems to be a predominance of males in CD8-related cluster 3, as well as a tendency towards a higher delta-FS in CD8-related cluster 2.
 
 ## Principal component analysis
 
@@ -286,6 +332,8 @@ This is how the first 5 PCs are driven by the different cytokine markers:
 -   **PC4**: driven positively by CD-161, IL-17 and IL-22, and negatively by IFN-gamma.
 -   **PC5**: driven negatively by CD-161 and negatively by IL-21 and IL-22.
 
+## Correlation of CD8 cytokines with age
+
 Now let's explore the correlation between the different PCs and the age of the subjects:
 
 ```{r}
@@ -322,6 +370,17 @@ imm_cyto_cd8.tsne.in |>
 
 PC3 seems to be the only primary component statistically associated with age, and it is negatively correlated with it.
 
+Now let's take a look at each of the markers individually:
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  left_join(demographics |> select(sample_id, age), by = "sample_id") |>
+  pivot_longer(-c(sample_id, group, age), names_to = "marker") |>
+  group_by(marker) |>
+  reframe(cor.test(value, age) |> tidy()) |>
+  arrange(p.value)
+```
+
 ```{r}
 imm_cyto_cd8.tsne.in |>
   select(sample_id, ifn_gamma, il21, cd161, tnf_alpha) |>
@@ -337,7 +396,7 @@ imm_cyto_cd8.tsne.in |>
   facet_wrap(~marker, scales = "free")
 ```
 
-However, this correlation is not driven by the individual markers, but rather by the combination of them. This suggests that the PCs are capturing a more complex relationship between the markers and age.
+Despite the apparent negative correlation between PC3 and age, the only individual marker statistically associated with age seems to be IFN-gamma, and the correlation is negative.
 
 Let's see how the first 5 PCs are represented among the clusters we identified earlier:
 
@@ -402,6 +461,27 @@ imm_cyto_cd8.tsne.in |>
   labs(title = "Raw dataset")
 ```
 
+## Sex
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
+  filter(group == "ALS") |>
+  left_join(clinical |> select(sample_id, sex), by = "sample_id") |>
+  ggplot(aes(tSNE.x, tSNE.y, color = sex)) +
+  geom_point() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  left_join(clinical |> select(sample_id, sex), by = "sample_id") |>
+  drop_na(sex) |>
+  ggplot(aes(KM, fill=sex)) +
+  geom_bar(position="fill")
+```
+
 ## Cases vs controls
 
 ```{r}
@@ -418,10 +498,7 @@ imm_cyto_cd8.tsne.in |>
 imm_cyto_cd8.tsne.in |>
   bind_cols(tSNE.x = imm_cyto_cd8.tsne$Y[, 1], tSNE.y = imm_cyto_cd8.tsne$Y[, 2]) |>
   filter(group == "ALS") |>
-  left_join(
-    clinical |> select(sample_id, site_of_onset),
-    by = "sample_id"
-  ) |>
+  left_join(clinical |> select(sample_id, site_of_onset), by = "sample_id") |>
   ggplot(aes(tSNE.x, tSNE.y, color = site_of_onset)) +
   geom_point() +
   theme(legend.position = "bottom")
@@ -430,12 +507,8 @@ imm_cyto_cd8.tsne.in |>
 ```{r}
 imm_cyto_cd8.tsne.in |>
   bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
-  left_join(
-    clinical |> select(sample_id, site_of_onset),
-    by = "sample_id"
-  ) |>
+  left_join(clinical |> select(sample_id, site_of_onset), by = "sample_id") |>
   drop_na(site_of_onset) |>
-  mutate(site_of_onset = site_of_onset) |>
   ggplot(aes(KM, fill=site_of_onset)) +
   geom_bar(position="fill")
 ```
@@ -520,26 +593,6 @@ summary(imm_cyto_cd8_sex_i.cph)
 This effect is independent of sex, and there's not an associated interaction.
 
 ```{r}
-imm_cyto_cd8_age.cph <- coxph(
-  Surv(disease_duration, vital_status) ~ KM + age_at_onset,
-  data = imm_cyto_cd8.surv
-)
-
-summary(imm_cyto_cd8_age.cph)
-```
-
-```{r}
-imm_cyto_cd8_age_i.cph <- coxph(
-  Surv(disease_duration, vital_status) ~ KM * age_at_onset,
-  data = imm_cyto_cd8.surv
-)
-
-summary(imm_cyto_cd8_age_i.cph)
-```
-
-This effect is also not fully explained by a higher age at onset, but there seems to be an interaction where older patients in cluster 2 have a slightly better survival compared to younger individuals within that cluster.
-
-```{r}
 imm_cyto_cd8_onset.cph <- coxph(
   Surv(disease_duration, vital_status) ~ KM + site_of_onset,
   data = imm_cyto_cd8.surv
@@ -558,6 +611,27 @@ summary(imm_cyto_cd8_onset_i.cph)
 ```
 
 This effect is also independent of site of onset, and there's not a clear interaction either.
+
+
+```{r}
+imm_cyto_cd8_age.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM + age_at_onset,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_age.cph)
+```
+
+```{r}
+imm_cyto_cd8_age_i.cph <- coxph(
+  Surv(disease_duration, vital_status) ~ KM * age_at_onset,
+  data = imm_cyto_cd8.surv
+)
+
+summary(imm_cyto_cd8_age_i.cph)
+```
+
+Finally, this effect is also not fully explained by differences in age at onset, but there seems to be an interaction where older patients in cluster 2 have a slightly better survival compared to younger individuals within that cluster.
 
 To establish which cytokines among the ones differentially expressed in cluster 2 drive the survival effects, let's analyze each one of them separately:
 
