@@ -13,6 +13,8 @@
 			r-packages = with pkgs.rPackages; [
 				Rtsne
 				broom
+				effects
+				ggeffects
 				ggsignif
 				ggsurvfit
 				gtsummary
