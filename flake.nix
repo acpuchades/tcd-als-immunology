@@ -17,6 +17,7 @@
 				ggsurvfit
 				gtsummary
 				janitor
+				markdown
 				missForest
 				quarto
 				survival
