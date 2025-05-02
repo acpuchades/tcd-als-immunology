@@ -1,12 +1,12 @@
 ---
 title: "TCD ALS Immunology Analysis"
 author: "Alejandro Caravaca Puchades"
-date: "`r Sys.Date()`"
-output:
-  html_document:
-    df_print: paged
-    toc: true
-    toc_float: true
+date: 2025-05-02
+output: html
+toc: true
+toc_depth: 2
+toc_float: true
+df-print: paged
 ---
 
 # Initialize the environment
@@ -14,13 +14,12 @@ output:
 ```{r echo=FALSE}
 library(Rtsne)
 library(broom)
-library(survival)
 library(ggsignif)
 library(gtsummary)
-library(tidyverse)
 library(ggplot2)
 library(ggsurvfit)
-library(powerSurvEpi)
+library(tidyverse)
+library(survival)
 ```
 
 ```{r}
@@ -151,7 +150,6 @@ imm_treg_tmem.tsne.in |>
   theme(legend.position = "bottom")
 ```
 
-
 # CD4 cytokine expression
 
 ```{r}
@@ -173,7 +171,6 @@ imm_cyto_cd4.tsne.in |>
   geom_point() +
   theme(legend.position = "bottom")
 ```
-
 
 ## Site of onset
 
@@ -283,18 +280,18 @@ imm_cyto_cd8.pca$rotation[, 1:5] |>
 
 This is how the first 5 PCs are driven by the different cytokine markers:
 
-- **PC1**: driven positively by IL-2, IL-4, GM-CSF and TNF-alpha.
-- **PC2**: driven positively by IL-17 and IL-22.
-- **PC3**: driven negatively by IFN-gamma, IL-21, CD-161 and TNF-alpha.
-- **PC4**: driven positively by CD-161, IL-17 and IL-22, and negatively by IFN-gamma.
-- **PC5**: driven negatively by CD-161 and negatively by IL-21 and IL-22.
+-   **PC1**: driven positively by IL-2, IL-4, GM-CSF and TNF-alpha.
+-   **PC2**: driven positively by IL-17 and IL-22.
+-   **PC3**: driven negatively by IFN-gamma, IL-21, CD-161 and TNF-alpha.
+-   **PC4**: driven positively by CD-161, IL-17 and IL-22, and negatively by IFN-gamma.
+-   **PC5**: driven negatively by CD-161 and negatively by IL-21 and IL-22.
 
 Now let's explore the correlation between the different PCs and the age of the subjects:
 
 ```{r}
 imm_cyto_cd8.tsne.in |>
   select(sample_id) |>
-  bind_cols(as_tibble(imm_cyto_cd8.pca$x[,1:5])) |>
+  bind_cols(as_tibble(imm_cyto_cd8.pca$x)) |>
   left_join(demographics |> select(sample_id, age), by = "sample_id") |>
   drop_na(age) |>
   pivot_longer(
@@ -323,7 +320,24 @@ imm_cyto_cd8.tsne.in |>
   facet_wrap(~marker, scales = "free")
 ```
 
-PC3 seems to be the only marker statistically associated with age, and it is negatively correlated with it. This means that older patients have lower values of PC3 ---and consequently, higher levels of CD8-associated IFN-gamma, IL-21, CD-161 and TNF-alpha---.
+PC3 seems to be the only primary component statistically associated with age, and it is negatively correlated with it.
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  select(sample_id, ifn_gamma, il21, cd161, tnf_alpha) |>
+  left_join(demographics |> select(sample_id, age), by = "sample_id") |>
+  drop_na(age) |>
+  pivot_longer(
+    -c(sample_id, age),
+    names_to = "marker", values_to = "value"
+  ) |>
+  ggplot(aes(age, value)) +
+  geom_smooth(method="lm") +
+  geom_point() +
+  facet_wrap(~marker, scales = "free")
+```
+
+However, this correlation is not driven by the individual markers, but rather by the combination of them. This suggests that the PCs are capturing a more complex relationship between the markers and age.
 
 Let's see how the first 5 PCs are represented among the clusters we identified earlier:
 
@@ -640,11 +654,13 @@ However, the Cox regression analysis on the unimputed dataset still shows a high
 ```{r}
 imm_cytokines |>
   inner_join(clinical, by = "sample_id") |>
-  with(coxph(Surv(disease_duration, vital_status) ~ CD8_il21_T0))
+  with(coxph(Surv(disease_duration, vital_status) ~ CD8_il21_T0)) |>
+  summary()
 ```
 
 ```{r}
 imm_cytokines |>
   inner_join(clinical, by = "sample_id") |>
-  with(coxph(Surv(disease_duration, vital_status) ~ CD8_il21_T0 * age_at_onset))
+  with(coxph(Surv(disease_duration, vital_status) ~ CD8_il21_T0 * age_at_onset)) |>
+  summary()
 ```
