@@ -571,7 +571,7 @@ imm_cyto_cd8.km <- survfit2(
 ggsurvfit(imm_cyto_cd8.km) + add_pvalue() + labs(title="Imputed dataset")
 ```
 
-There seems to be a worse survival associated with CD8-related cluster 2.
+There seems to be a **worse survival associated with CD8-related cluster 2**.
 
 ```{r}
 cd8_km_sex.imp_cph <- coxph(
@@ -613,7 +613,6 @@ summary(cd8_km_onset_i.imp_cph)
 
 This effect is also independent of site of onset, and there's not a clear interaction either.
 
-
 ```{r}
 cd8_km_age.imp_cph <- coxph(
   Surv(disease_duration, vital_status) ~ KM + age_at_onset,
@@ -632,7 +631,7 @@ cd8_km_age_i.imp_cph <- coxph(
 summary(cd8_km_age_i.imp_cph)
 ```
 
-Finally, this effect is also not fully explained by differences in age at onset, but there seems to be an interaction where patients with an earlier age at onset have the worst survival among patients in cluster 2.
+Finally, this effect is also not fully explained by differences in age at onset, but there seems to be an interaction where **patients with an earlier age at onset have the worst survival among patients in cluster 2**.
 
 To establish which cytokines among the ones differentially expressed in cluster 2 drive the survival effects, let's analyze each one of them separately:
 
@@ -652,13 +651,13 @@ coxph(Surv(disease_duration, vital_status) ~ tnf_alpha, imm_cyto_cd8.surv)
 coxph(Surv(disease_duration, vital_status) ~ gm_csf, imm_cyto_cd8.surv)
 ```
 
-Among IL-21, IFN-gamma, TNF-alpha and GM-CSF, IL-21 is the only one that seems to have a significant effect on survival.
+Among IL-21, IFN-gamma, TNF-alpha and GM-CSF, **IL-21 is the only one that seems to have a significant effect on survival**.
 
 ```{r}
 coxph(Surv(disease_duration, vital_status) ~ KM + il21, imm_cyto_cd8.surv) |> summary()
 ```
 
-Adjusting for IL-21 makes the effect of CD8-related cluster 2 non-significant, which suggests that IL-21 is the main driver of the survival effect we see in this cluster.
+Adjusting for IL-21 makes the effect of CD8-related cluster 2 non-significant, which suggests that **IL-21 is the main driver of the survival effect we see in this cluster**.
 
 > **Hypothesis**: IL-21 expression in CD8 is the main driver of the survival differences we see in this dataset. Alternatively, it could be inversely-associated with survival if patients with more rapidly progressive ALS or at more advanced stages of disease have higher IL-21 expression by CD8.
 
@@ -671,17 +670,9 @@ imm_cyto_cd8.surv |>
   ggsurvfit() + add_pvalue() + labs(title = "Imputed dataset")
 ```
 
-We see that patients in the IL-21/High group have a significantly shorter survival time compared to those in the IL-21/Low group (p = 0.03). This suggests that IL-21 is a key factor in determining survival differences in this dataset.
+We see that **patients in the IL-21/High group have a significantly shorter survival time compared to those in the IL-21/Low group (p = 0.03)**. This suggests that IL-21 is a key factor in determining survival differences in this dataset.
 
-```{r}
-imm_cytokines_l |>
-  filter(group == "ALS", celltype=="CD8") |>
-  drop_na(sample_id, timepoint, il21) |>
-  ggplot(aes(timepoint, il21, group=sample_id)) +
-  geom_line() +
-  coord_cartesian(ylim=c(0, 17)) +
-  labs(title = "Raw dataset", x = NULL, y = "CD8 IL-21")
-```
+## Effects of IL-21 expression at different timepoints
 
 ```{r}
 imm_cytokines.imputed |>
@@ -696,7 +687,27 @@ imm_cytokines.imputed |>
   ggsurvfit() + add_pvalue() + labs(title="Imputed dataset")
 ```
 
-Patients with increased CD8 IL-21 expression at both T0 and T1 show a significantly worse survival compared to those with low IL-21 expression at both timepoints on the imputed dataset (p = 0.039).
+Patients with **increased CD8 IL-21 expression at both T0 and T1 show a significantly worse survival** compared to those with low IL-21 expression at both timepoints on the imputed dataset (p = 0.039).
+
+Let's visualize the relationship between CD8-related clusters and evolution in IL-21:
+
+```{r}
+imm_cytokines_l |>
+  filter(group == "ALS", celltype=="CD8") |>
+  drop_na(sample_id, timepoint, il21) |>
+  left_join(
+    imm_cyto_cd8.tsne.in |>
+        select(sample_id) |>
+        bind_cols(KM=factor(imm_cyto_cd8.kmc$cluster)),
+    by = "sample_id"
+  ) |>
+  ggplot(aes(timepoint, il21, group=sample_id, color=KM)) +
+  geom_line() +
+  coord_cartesian(ylim=c(0, 17)) +
+  labs(title = "Raw dataset", x = NULL, y = "CD8 IL-21")
+```
+
+Despite the apparent effect of higher CD8/IL-21 expression also at T1, **none of the patients in cluster 2 seem to have IL-21 levels available at T1, so we can't really draw any conclusions based on its longitudinal change**.
 
 Let's take a look now at the effects of CD8-associated IL-21 on survival, and its interactions with clinical characteristics:
 
@@ -727,7 +738,7 @@ cd8_il21_age_i.imp_cph <- coxph(
 summary(cd8_il21_age_i.imp_cph)
 ```
 
-Similarly to the survival effects observed for CD8-related cluster 2, the effects of CD8-related IL-21 is independent of sex, site of onset and age at onset, and there's only a significant interaction with age at onset.
+Similarly to the survival effects observed for CD8-related cluster 2, **the effects of CD8-related IL-21 is independent of sex, site of onset and age at onset**, and a significant interaction with age at onset is observed.
 
 ```{r}
 ggpredict(
@@ -736,7 +747,7 @@ ggpredict(
 ) |> plot() + labs(title = "Predicted risk scores – Imputed dataset")
 ```
 
-As we saw, the effect of increased IL-21 CD8 response is associated with worse survival, and this effect is more pronounced in patients with an earlier age at onset.
+As we saw previously with CD8-related cluster 2, **the effect of increased IL-21 CD8 response is also associated with worse survival, and this effect is more pronounced in patients with an earlier age at onset**.
 
 ```{r}
 imm_cytokines_t0 |>
@@ -749,7 +760,7 @@ imm_cytokines_t0 |>
   ggsurvfit() + add_pvalue() + labs(title = "Raw dataset")
 ```
 
-### Sensitivity analysis: Unimputed dataset
+## Sensitivity analysis on the unimputed dataset
 
 Let's try to reproduce the same analyses on CD8-associated IL-21 response using the unimputed dataset. This will allow us to assess the robustness of our findings and see if the imputation process has introduced any biases.
 
@@ -768,7 +779,7 @@ imm_cytokines |>
 
 The same analysis by discretizing on the median IL-21 shows a similar trend in the unimputed dataset, with results not reaching statistical significance. This might be due to both sample size reduction from listwise deletion, and loss of statistical power due to discretization of IL-21 levels.
 
-However, the Cox regression analysis on the unimputed dataset still shows a highly significant survival effect for IL21-associated CD8 response and a significant interaction with age at onset, mirroring the effects we saw on the imputed dataset.
+However, **the Cox regression analysis on the unimputed dataset still shows a highly significant survival effect for IL21-associated CD8 response and a significant interaction with age at onset**, mirroring the effects we saw on the imputed dataset.
 
 ```{r}
 imm_cytokines |>
