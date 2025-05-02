@@ -291,6 +291,20 @@ imm_cyto_cd8.tsne.in |>
 
 Interestingly, there seems to be a predominance of males in CD8-related cluster 3, as well as a tendency towards a higher delta-FS in CD8-related cluster 2.
 
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  relocate(KM, .after = group) |>
+  filter(KM == 2)
+```
+
+```{r}
+imm_cyto_cd8.tsne.in |>
+  bind_cols(KM = factor(imm_cyto_cd8.kmc$cluster)) |>
+  relocate(KM, .after = group) |>
+  filter(KM == 3)
+```
+
 ## Principal component analysis
 
 ```{r}
