@@ -3,7 +3,7 @@ title: "TCD ALS Immunology Analysis"
 author:
   name: "Alejandro Caravaca Puchades"
   email: "acaravaca@idibell.cat"
-  affiliation: "Institut d'Investigació Biomèdica de Bellvitge (IDIBELL), Barcelona, Spain"
+  affiliation: "Institut d'Investigació Biomèdica de Bellvitge (IDIBELL), L'Hospitalet de Llobregat, Barcelona, Spain"
   orcid: "0000-0003-2223-7335"
 toc: true
 toc_depth: 2
@@ -17,15 +17,16 @@ format:
 ```{r}
 #| echo: false
 #| message: false
-library(Rtsne)
+library(boot)
 library(broom)
 library(ggsignif)
 library(gtsummary)
 library(ggplot2)
 library(ggeffects)
 library(ggsurvfit)
-library(tidyverse)
+library(Rtsne)
 library(survival)
+library(tidyverse)
 
 set.seed(9999)
 ```
@@ -816,3 +817,27 @@ ggpredict(
   terms = c("CD8_il21_T0", "age_at_onset")
 ) |> plot() + labs(title = "Predicted risk scores – Raw dataset")
 ```
+
+## Bootstrapping analysis
+
+To get further confirmation that these results are not the result of overfitting the data due to small sample size, let's get bootstrapped confidence intervals for the Cox regression coefficients:
+
+```{r}
+cd8_il21_age_i.boot_cph <- boot(imm_cyto_cd8.surv, function(data, idx) {
+	model.fit <- with(data[idx,],
+		coxph(Surv(disease_duration, vital_status) ~ il21 * age_at_onset)
+	)
+	result <- summary(model.fit)
+	return(result$coefficients[,c("exp(coef)", "se(coef)")])
+}, R = 1000)
+```
+
+```{r}
+plot(cd8_il21_age_i.boot_cph)
+```
+
+```{r}
+boot.ci(cd8_il21_age_i.boot_cph)
+```
+
+**Bootstrapped confidence intervals for the effect of IL21-based CD8 response on survival all show significant results independently of age at onset**, boosting our confidence in the robustness of these results.
