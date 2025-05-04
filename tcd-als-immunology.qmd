@@ -17,6 +17,7 @@ format:
 ```{r}
 #| echo: false
 #| message: false
+
 library(boot)
 library(broom)
 library(ggsignif)
@@ -24,6 +25,7 @@ library(gtsummary)
 library(ggplot2)
 library(ggeffects)
 library(ggsurvfit)
+library(mice)
 library(Rtsne)
 library(survival)
 library(tidyverse)
@@ -362,10 +364,7 @@ imm_cyto_cd8.tsne.in |>
     -c(sample_id, age),
     names_to = "marker", values_to = "value"
   ) |>
-  reframe(
-    cor.test(age, value, method = "spearman") |> tidy(),
-    .by = "marker"
-  )
+  reframe(cor.test(age, value, method = "kendall") |> tidy(), .by = marker)
 ```
 
 ```{r}
@@ -379,21 +378,18 @@ imm_cyto_cd8.tsne.in |>
     names_to = "marker", values_to = "value"
   ) |>
   ggplot(aes(age, value)) +
-  geom_smooth(method="lm") +
+  geom_smooth(method="lm", formula = y ~ x) +
   geom_point() +
   facet_wrap(~marker, scales = "free")
 ```
 
-PC3 seems to be the only primary component statistically associated with age, and it is negatively correlated with it.
-
-Now let's take a look at each of the markers individually:
+**PC3 seems to be the only primary component statistically associated with age**, and it is negatively correlated with it. Now let's take a look at each of the markers individually:
 
 ```{r}
 imm_cyto_cd8.tsne.in |>
   left_join(demographics |> select(sample_id, age), by = "sample_id") |>
   pivot_longer(-c(sample_id, group, age), names_to = "marker") |>
-  group_by(marker) |>
-  reframe(cor.test(value, age) |> tidy()) |>
+  reframe(cor.test(value, age) |> tidy(), .by=marker) |>
   arrange(p.value)
 ```
 
@@ -407,14 +403,14 @@ imm_cyto_cd8.tsne.in |>
     names_to = "marker", values_to = "value"
   ) |>
   ggplot(aes(age, value)) +
-  geom_smooth(method="lm") +
+  geom_smooth(method="lm", formula = y ~ x) +
   geom_point() +
   facet_wrap(~marker, scales = "free")
 ```
 
-Despite the apparent negative correlation between PC3 and age, the only individual marker statistically associated with age seems to be IFN-gamma, and the correlation is negative.
+**It seems like the apparent negative correlation between PC3 and age is mostly driven by IFN-gamma and TNF-alpha**, both being positively correlated with age and inversely represented in PC3.
 
-Let's see how the first 5 PCs are represented among the clusters we identified earlier:
+Let's now see how the first 5 PCs are represented among the clusters we identified earlier:
 
 ```{r}
 imm_cyto_cd8.tsne.in |>
@@ -687,43 +683,6 @@ imm_cyto_cd8.surv |>
 
 We see that **patients in the IL-21/High group have a significantly shorter survival time compared to those in the IL-21/Low group (p = 0.03)**. This suggests that IL-21 is a key factor in determining survival differences in this dataset.
 
-## Effects of IL-21 expression at different timepoints
-
-```{r}
-imm_cytokines.imputed |>
-  filter(group == "ALS") |>
-  mutate(il21_group = factor(case_when(
-    CD8_il21_T0 > median(CD8_il21_T0, na.rm = TRUE) ~ "IL-21/EarlyHigh",
-    CD8_il21_T1 > median(CD8_il21_T1, na.rm = TRUE) ~ "IL-21/LateHigh",
-    TRUE ~ "IL-21/Low"
-  ), levels = c("IL-21/Low", "IL-21/EarlyHigh", "IL-21/LateHigh"))) |>
-  left_join(clinical, by = "sample_id") |>
-  with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
-  ggsurvfit() + add_pvalue() + labs(title="Imputed dataset")
-```
-
-Patients with **increased CD8 IL-21 expression at both T0 and T1 show a significantly worse survival** compared to those with low IL-21 expression at both timepoints on the imputed dataset (p = 0.039).
-
-Let's visualize the relationship between CD8-related clusters and evolution in IL-21:
-
-```{r}
-imm_cytokines_l |>
-  filter(group == "ALS", celltype=="CD8") |>
-  drop_na(sample_id, timepoint, il21) |>
-  left_join(
-    imm_cyto_cd8.tsne.in |>
-        select(sample_id) |>
-        bind_cols(KM=factor(imm_cyto_cd8.kmc$cluster)),
-    by = "sample_id"
-  ) |>
-  ggplot(aes(timepoint, il21, group=sample_id, color=KM)) +
-  geom_line() +
-  coord_cartesian(ylim=c(0, 17)) +
-  labs(title = "Raw dataset", x = NULL, y = "CD8 IL-21")
-```
-
-Despite the apparent effect of higher CD8/IL-21 expression also at T1, **none of the patients in cluster 2 seem to have IL-21 levels available at T1, so we can't really draw any conclusions based on its longitudinal change**.
-
 Let's take a look now at the effects of CD8-associated IL-21 on survival, and its interactions with clinical characteristics:
 
 ```{r}
@@ -762,7 +721,46 @@ ggpredict(
 ) |> plot() + labs(title = "Predicted risk scores – Imputed dataset")
 ```
 
-As we saw previously with CD8-related cluster 2, **the effect of increased IL-21 CD8 response is also associated with worse survival, and this effect is more pronounced in patients with an earlier age at onset**.
+## Effects of IL-21 expression at different timepoints
+
+```{r}
+imm_cytokines.imputed |>
+  filter(group == "ALS") |>
+  mutate(il21_group = factor(case_when(
+    CD8_il21_T0 > median(CD8_il21_T0, na.rm = TRUE) ~ "IL-21/EarlyHigh",
+    CD8_il21_T1 > median(CD8_il21_T1, na.rm = TRUE) ~ "IL-21/LateHigh",
+    TRUE ~ "IL-21/Low"
+  ), levels = c("IL-21/Low", "IL-21/EarlyHigh", "IL-21/LateHigh"))) |>
+  left_join(clinical, by = "sample_id") |>
+  with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
+  ggsurvfit() + add_pvalue() + labs(title="Imputed dataset")
+```
+
+Patients with **increased CD8 IL-21 expression at both T0 and T1 show a significantly worse survival** compared to those with low IL-21 expression at both timepoints on the imputed dataset (p = 0.039).
+
+Let's visualize the relationship between CD8-related clusters and evolution in IL-21:
+
+```{r}
+imm_cytokines_l |>
+  filter(group == "ALS", celltype=="CD8") |>
+  drop_na(sample_id, timepoint, il21) |>
+  left_join(
+    imm_cyto_cd8.tsne.in |>
+        select(sample_id) |>
+        bind_cols(KM=factor(imm_cyto_cd8.kmc$cluster)),
+    by = "sample_id"
+  ) |>
+  mutate(t_pos = case_match(timepoint, "T0" ~ 0, "T1" ~ 1) + rnorm(n(), sd=0.1)) |>
+  ggplot(aes(t_pos, il21, group=sample_id, color=KM)) +
+  geom_point() +
+  geom_line(linetype="dotted") +
+  scale_x_continuous(breaks = 0:1, labels = c("T0", "T1")) +
+  labs(title = "Raw dataset", x = NULL, y = "CD8 IL-21")
+```
+
+## Sensitivity analysis on the unimputed dataset
+
+As we saw previously with CD8-related cluster 2, **the effect of increased IL-21 CD8 response is also associated with worse survival, and this effect is more pronounced in patients with an earlier age at onset**. Let's try to reproduce the same analyses on CD8-associated IL-21 response using the unimputed dataset. This will allow us to assess the robustness of our findings and see if the imputation process has introduced any biases.
 
 ```{r}
 imm_cytokines_t0 |>
@@ -770,23 +768,6 @@ imm_cytokines_t0 |>
   mutate(il21_group = ifelse(
     CD8_il21 <= median(CD8_il21, na.rm = TRUE), "IL-21/Low", "IL-21/High"
   )) |>
-  left_join(clinical, by = "sample_id") |>
-  with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
-  ggsurvfit() + add_pvalue() + labs(title = "Raw dataset")
-```
-
-## Sensitivity analysis on the unimputed dataset
-
-Let's try to reproduce the same analyses on CD8-associated IL-21 response using the unimputed dataset. This will allow us to assess the robustness of our findings and see if the imputation process has introduced any biases.
-
-```{r}
-imm_cytokines |>
-  filter(group == "ALS") |>
-  mutate(il21_group = factor(case_when(
-    CD8_il21_T0 > median(CD8_il21_T0, na.rm = TRUE) ~ "IL-21/EarlyHigh",
-    CD8_il21_T1 > median(CD8_il21_T1, na.rm = TRUE) ~ "IL-21/LateHigh",
-    TRUE ~ "IL-21/Low"
-  ), levels = c("IL-21/Low", "IL-21/EarlyHigh", "IL-21/LateHigh"))) |>
   left_join(clinical, by = "sample_id") |>
   with(survfit2(Surv(disease_duration, vital_status) ~ il21_group)) |>
   ggsurvfit() + add_pvalue() + labs(title = "Raw dataset")

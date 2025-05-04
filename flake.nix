@@ -20,6 +20,7 @@
 				gtsummary
 				janitor
 				markdown
+				mice
 				missForest
 				quarto
 				survival
